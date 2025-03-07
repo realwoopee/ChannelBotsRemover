@@ -1,9 +1,9 @@
-﻿using System.Text.Json;
-using ChannelBotsRemover;
+﻿using ChannelBotsRemover;
 using Microsoft.Extensions.Configuration;
 using TL;
 
 var configBuilder = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
 var config = configBuilder.Build().Get<AppConfiguration>();
