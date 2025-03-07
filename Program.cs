@@ -10,9 +10,15 @@ var config = configBuilder.Build().Get<AppConfiguration>();
 
 if (config == null)
 {
-    Console.WriteLine("Failed to load appsettings.json");
+    Console.WriteLine($"[{DateTime.Now}] Failed to load appsettings.json");
     return -1;
 }
+
+WTelegram.Helpers.Log = (level, text) =>
+{
+    if(level > 2)
+        Console.WriteLine($"[{DateTime.Now}][{level}] {text}");
+};
 
 var client = new WTelegram.Client(name =>
     name switch
@@ -32,15 +38,20 @@ var banRights = new ChatBannedRights()
 };
 
 var channel = (await client.Contacts_ResolveUsername(config.ChannelName)!)!.Channel;
+if (channel == null)
+{
+    Console.WriteLine($"[{DateTime.Now}] Failed to resolve username");
+    return -1;
+}
 
-Console.WriteLine("Getting participants");
+Console.WriteLine($"[{DateTime.Now}] Getting participants");
 var current = await client.Channels_GetParticipants(
     new InputChannel(channel.ID, channel.access_hash),
     new ChannelParticipantsRecent());
 
 if (current is null)
 {
-    Console.WriteLine("No participants");
+    Console.WriteLine($"[{DateTime.Now}] No participants");
     return -1;
 }
 
@@ -48,13 +59,13 @@ var didntDelete = true;
 while (current.count > 100 || !didntDelete)
 {
     didntDelete = true;
-    Console.WriteLine($"Got {current.count} recent participants");
+    Console.WriteLine($"[{DateTime.Now}] Got {current.count} recent participants");
     foreach (var participant in current.participants
                  .Where(x => x is ChannelParticipant cp
                              && cp.date > config.IntervalStartUtc
                              && cp.date < config.IntervalEndUtc).Cast<ChannelParticipant>())
     {
-        Console.WriteLine($"Banning user_id={participant.user_id} that joined on {participant.date} (UTC)");
+        Console.WriteLine($"[{DateTime.Now}] Banning user_id={participant.user_id} that joined on {participant.date} (UTC)");
 
         var success = false;
 
@@ -87,5 +98,5 @@ while (current.count > 100 || !didntDelete)
     await Task.Delay(1000);
 }
 
-Console.WriteLine("DONE");
+Console.WriteLine($"[{DateTime.Now}] DONE");
 return 0;
