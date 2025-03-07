@@ -45,27 +45,30 @@ if (channel == null)
 }
 
 Console.WriteLine($"[{DateTime.Now}] Getting participants");
-var current = await client.Channels_GetParticipants(
+var batch = await client.Channels_GetParticipants(
     new InputChannel(channel.ID, channel.access_hash),
     new ChannelParticipantsRecent());
 
-if (current is null)
+if (batch is null)
 {
     Console.WriteLine($"[{DateTime.Now}] No participants");
     return -1;
 }
 
 var didntDelete = true;
-while (current.count > 100 || !didntDelete)
+while (batch.count > 100 || !didntDelete)
 {
     didntDelete = true;
-    Console.WriteLine($"[{DateTime.Now}] Got {current.count} recent participants");
-    foreach (var participant in current.participants
+    Console.WriteLine($"[{DateTime.Now}] Got {batch.count} recent participants");
+    Console.WriteLine($"[{DateTime.Now}] {batch.participants.Count(x => x is ChannelParticipant)} are true");
+    if(batch.participants.LastOrDefault(x => x is ChannelParticipant) is ChannelParticipant last)
+        Console.WriteLine($"[{DateTime.Now}] Last one is {batch.users[last.UserId]} that joined on {last.date}");
+    foreach (var participant in batch.participants
                  .Where(x => x is ChannelParticipant cp
                              && cp.date > config.IntervalStartUtc
                              && cp.date < config.IntervalEndUtc).Cast<ChannelParticipant>())
     {
-        Console.WriteLine($"[{DateTime.Now}] Banning user_id={participant.user_id} that joined on {participant.date} (UTC)");
+        Console.WriteLine($"[{DateTime.Now}] Banning {batch.users[participant.UserId]} (id={participant.UserId}) that joined on {participant.date} (UTC)");
 
         var success = false;
 
@@ -75,14 +78,14 @@ while (current.count > 100 || !didntDelete)
             try
             {
                 // ban the spam bot
-                await client.Channels_EditBanned(channel, current.users[participant.UserId], banRights);
-                await Task.Delay(500);
+                await client.Channels_EditBanned(channel, batch.users[participant.UserId], banRights);
                 // unban it so it doesn't clog removed users list
-                await client.Channels_EditBanned(channel, current.users[participant.UserId], new ChatBannedRights());
+                await client.Channels_EditBanned(channel, batch.users[participant.UserId], new ChatBannedRights());
                 success = true;
             }
             catch (RpcException e)
             {
+                Console.WriteLine($"[{DateTime.Now}] RPC Error: {e.Code} X={e.X} {e.Message}");
                 success = false;
                 // wait if telegram starts throttling us
                 if (e.Code == 420)
@@ -90,10 +93,10 @@ while (current.count > 100 || !didntDelete)
             }
         }
         
-        await Task.Delay(500);
+        await Task.Delay(25);
     }
 
-    current = await client.Channels_GetParticipants(new InputChannel(channel.ID, channel.access_hash),
+    batch = await client.Channels_GetParticipants(new InputChannel(channel.ID, channel.access_hash),
         new ChannelParticipantsRecent());
     await Task.Delay(1000);
 }
